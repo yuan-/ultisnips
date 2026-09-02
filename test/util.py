@@ -1,17 +1,14 @@
+import importlib.util
 import platform
 
-try:
-    import unidecode
-    UNIDECODE_IMPORTED = True
-except ImportError:
-    UNIDECODE_IMPORTED = False
+UNIDECODE_IMPORTED = importlib.util.find_spec("unidecode") is not None
 
 
 def running_on_windows():
-    if platform.system() == 'Windows':
-        return 'Does not work on Windows.'
+    if platform.system() == "Windows":
+        return "Does not work on Windows."
 
 
 def no_unidecode_available():
     if not UNIDECODE_IMPORTED:
-        return 'unidecode is not available.'
+        return "unidecode is not available."

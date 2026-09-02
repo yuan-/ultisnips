@@ -1,21 +1,18 @@
-from test.vim_test_case import VimTestCase as _VimTest
-from test.constant import *
+from test.constant import EX, JF
 from test.util import running_on_windows
-
-# ExpandTab  {{{#
+from test.vim_test_case import VimTestCase as _VimTest
 
 
 class _ExpandTabs(_VimTest):
-
-    def _extra_options_pre_init(self, vim_config):
-        vim_config.append('set sw=3')
-        vim_config.append('set expandtab')
+    def _extra_vim_config(self, vim_config):
+        vim_config.append("set sw=3")
+        vim_config.append("set expandtab")
 
 
 class RecTabStopsWithExpandtab_SimpleExample_ECR(_ExpandTabs):
-    snippets = ('m', '\tBlaahblah \t\t  ')
-    keys = 'm' + EX
-    wanted = '   Blaahblah \t\t  '
+    snippets = ("m", "\tBlaahblah \t\t  ")
+    keys = "m" + EX
+    wanted = "   Blaahblah \t\t  "
 
 
 class RecTabStopsWithExpandtab_SpecialIndentProblem_ECR(_ExpandTabs):
@@ -26,48 +23,45 @@ class RecTabStopsWithExpandtab_SpecialIndentProblem_ECR(_ExpandTabs):
     # the fault is not with UltiSnips, we simply skip this test on windows
     # completely.
     skip_if = lambda self: running_on_windows()
-    snippets = (
-        ('m1', 'Something'),
-        ('m', '\t$0'),
-    )
-    keys = 'm' + EX + 'm1' + EX + '\nHallo'
-    wanted = '   Something\n        Hallo'
+    snippets = (("m1", "Something"), ("m", "\t$0"))
+    keys = "m" + EX + "m1" + EX + "\nHallo"
+    wanted = "   Something\n        Hallo"
 
-    def _extra_options_pre_init(self, vim_config):
-        _ExpandTabs._extra_options_pre_init(self, vim_config)
-        vim_config.append('set indentkeys=o,O,*<Return>,<>>,{,}')
-        vim_config.append('set indentexpr=8')
-# End: ExpandTab  #}}}
-
-# Proper Indenting  {{{#
+    def _extra_vim_config(self, vim_config):
+        _ExpandTabs._extra_vim_config(self, vim_config)
+        vim_config.append("set indentkeys=o,O,*<Return>,<>>,{,}")
+        vim_config.append("set indentexpr=8")
 
 
 class ProperIndenting_SimpleCase_ECR(_VimTest):
-    snippets = ('test', 'for\n    blah')
-    keys = '    test' + EX + 'Hui'
-    wanted = '    for\n        blahHui'
+    snippets = ("test", "for\n    blah")
+    keys = "    test" + EX + "Hui"
+    wanted = "    for\n        blahHui"
 
 
 class ProperIndenting_SingleLineNoReindenting_ECR(_VimTest):
-    snippets = ('test', 'hui')
-    keys = '    test' + EX + 'blah'
-    wanted = '    huiblah'
+    snippets = ("test", "hui")
+    keys = "    test" + EX + "blah"
+    wanted = "    huiblah"
 
 
 class ProperIndenting_AutoIndentAndNewline_ECR(_VimTest):
-    snippets = ('test', 'hui')
-    keys = '    test' + EX + '\n' + 'blah'
-    wanted = '    hui\n    blah'
+    snippets = ("test", "hui")
+    keys = "    test" + EX + "\n" + "blah"
+    wanted = "    hui\n    blah"
 
-    def _extra_options_pre_init(self, vim_config):
-        vim_config.append('set autoindent')
+    def _extra_vim_config(self, vim_config):
+        vim_config.append("set autoindent")
+
+
 # Test for bug 1073816
 
 
 class ProperIndenting_FirstLineInFile_ECR(_VimTest):
-    text_before = ''
-    text_after = ''
-    files = { 'us/all.snippets': r"""
+    text_before = ""
+    text_after = ""
+    files = {
+        "us/all.snippets": r"""
 global !p
 def complete(t, opts):
   if t:
@@ -83,42 +77,43 @@ endglobal
 snippet '^#?inc' "#include <>" !r
 #include <$1`!p snip.rv = complete(t[1], ['cassert', 'cstdio', 'cstdlib', 'cstring', 'fstream', 'iostream', 'sstream'])`>
 endsnippet
-        """}
-    keys = 'inc' + EX + 'foo'
-    wanted = '#include <foo>'
+        """
+    }
+    keys = "inc" + EX + "foo"
+    wanted = "#include <foo>"
 
 
-class ProperIndenting_FirstLineInFileComplete_ECR(
-        ProperIndenting_FirstLineInFile_ECR):
-    keys = 'inc' + EX + 'cstdl'
-    wanted = '#include <cstdlib>'
-# End: Proper Indenting  #}}}
-
-# Format options tests  {{{#
+class ProperIndenting_FirstLineInFileComplete_ECR(ProperIndenting_FirstLineInFile_ECR):
+    keys = "inc" + EX + "cstdl"
+    wanted = "#include <cstdlib>"
 
 
 class _FormatoptionsBase(_VimTest):
-
-    def _extra_options_pre_init(self, vim_config):
-        vim_config.append('set tw=20')
-        vim_config.append('set fo=lrqntc')
+    def _extra_vim_config(self, vim_config):
+        vim_config.append("set tw=20")
+        vim_config.append("set fo=lrqntc")
 
 
 class FOSimple_Break_ExpectCorrectResult(_FormatoptionsBase):
-    snippets = ('test', '${1:longer expand}\n$1\n$0', '', 'f')
-    keys = 'test' + EX + \
-        'This is a longer text that should wrap as formatoptions are  enabled' + \
-        JF + 'end'
-    wanted = 'This is a longer\ntext that should\nwrap as\nformatoptions are\nenabled\n' + \
-        'This is a longer\ntext that should\nwrap as\nformatoptions are\nenabled\n' + \
-        'end'
+    snippets = ("test", "${1:longer expand}\n$1\n$0", "", "f")
+    keys = (
+        "test"
+        + EX
+        + "This is a longer text that should wrap as formatoptions are  enabled"
+        + JF
+        + "end"
+    )
+    wanted = (
+        "This is a longer\ntext that should\nwrap as\nformatoptions are\nenabled\n"
+        + "This is a longer\ntext that should\nwrap as\nformatoptions are\nenabled\n"
+        + "end"
+    )
 
 
 class FOTextBeforeAndAfter_ExpectCorrectResult(_FormatoptionsBase):
-    snippets = ('test', 'Before${1:longer expand}After\nstart$1end')
-    keys = 'test' + EX + 'This is a longer text that should wrap'
-    wanted = \
-        """BeforeThis is a
+    snippets = ("test", "Before${1:longer expand}After\nstart$1end")
+    keys = "test" + EX + "This is a longer text that should wrap"
+    wanted = """BeforeThis is a
 longer text that
 should wrapAfter
 startThis is a
@@ -128,11 +123,12 @@ should wrapend"""
 
 # Tests for https://bugs.launchpad.net/bugs/719998
 class FOTextAfter_ExpectCorrectResult(_FormatoptionsBase):
-    snippets = ('test', '${1:longer expand}after\nstart$1end')
-    keys = ('test' + EX + 'This is a longer snippet that should wrap properly '
-            'and the mirror below should work as well')
-    wanted = \
-        """This is a longer
+    snippets = ("test", "${1:longer expand}after\nstart$1end")
+    keys = (
+        "test" + EX + "This is a longer snippet that should wrap properly "
+        "and the mirror below should work as well"
+    )
+    wanted = """This is a longer
 snippet that should
 wrap properly and
 the mirror below
@@ -145,13 +141,31 @@ should work as wellend"""
 
 
 class FOWrapOnLongWord_ExpectCorrectResult(_FormatoptionsBase):
-    snippets = ('test', '${1:longer expand}after\nstart$1end')
-    keys = ('test' + EX + 'This is a longersnippet that should wrap properly')
-    wanted = \
-        """This is a
+    snippets = ("test", "${1:longer expand}after\nstart$1end")
+    keys = "test" + EX + "This is a longersnippet that should wrap properly"
+    wanted = """This is a
 longersnippet that
 should wrap properlyafter
 startThis is a
 longersnippet that
 should wrap properlyend"""
-# End: Format options tests  #}}}
+
+
+# GH #1510: auto-triggered snippet expands across a textwidth-induced wrap.
+# Trigger `mm` near column tw forces Vim to insert a newline mid-expansion;
+# the body `\( $1 \) $0` must come out intact, not corrupted into `\|)`.
+class _Tw79Base(_VimTest):
+    def _extra_vim_config(self, vim_config):
+        vim_config.append("set tw=79")
+        vim_config.append("set fo+=t")
+
+
+class FOAutoTriggerNearWrap_GH1510(_Tw79Base):
+    # Snippet body matches the user's `\\( $1 \\) $0` literally.  The parser
+    # turns each `\\` into a literal backslash, leaving the body `\( $1 \) $0`.
+    snippets = ("mm", r"\\( $1 \\) $0", "Inline Math", "wA")
+    # 78 chars of "x " padding plus "mm" → trigger fires at col 80, beyond tw.
+    # After expansion, "Y" goes into $1 and "Z" into $0; both must land in
+    # the snippet body, not get smeared into the surrounding `\(...\)`.
+    keys = "x " * 39 + "mm" + "Y" + JF + "Z"
+    wanted = ("x " * 39).rstrip() + "\n\\( Y \\) Z"

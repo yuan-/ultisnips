@@ -1,58 +1,37 @@
-" File: UltiSnips.vim
-" Author: Holger Rapp <SirVer@gmx.de>
-" Description: The Ultimate Snippets solution for Vim
-
-if exists('did_UltiSnips_autoload') || &cp || version < 700
+if exists("b:did_autoload_ultisnips")
     finish
 endif
-let did_UltiSnips_autoload=1
+let b:did_autoload_ultisnips = 1
 
-" Define dummy version of function called by autocommand setup in
-" ftdetect/UltiSnips.vim and plugin/UltiSnips.vim.
-" If the function isn't defined (probably due to using a copy of vim
-" without python support) it would cause an error.
-function! UltiSnips#FileTypeChanged()
-endfunction
-function! UltiSnips#CursorMoved()
-endfunction
-function! UltiSnips#CursorMoved()
-endfunction
-function! UltiSnips#LeavingBuffer()
-endfunction
-function! UltiSnips#LeavingInsertMode()
-endfunction
+" Also import vim as we expect it to be imported in many places.
+py3 import vim
+py3 from UltiSnips import UltiSnips_Manager
 
-call UltiSnips#bootstrap#Bootstrap()
-if !exists("g:_uspy")
-   " Delete the autocommands defined in plugin/UltiSnips.vim and
-   " ftdetect/UltiSnips.vim.
-   augroup UltiSnips
-       au!
-   augroup END
-   augroup UltiSnipsFileType
-       au!
-   augroup END
-   finish
-end
-
-" FUNCTIONS {{{
-function! s:compensate_for_pum()
+function! s:compensate_for_pum() abort
     """ The CursorMovedI event is not triggered while the popup-menu is visible,
     """ and it's by this event that UltiSnips updates its vim-state. The fix is
     """ to explicitly check for the presence of the popup menu, and update
     """ the vim-state accordingly.
     if pumvisible()
-        exec g:_uspy "UltiSnips_Manager._cursor_moved()"
+        py3 UltiSnips_Manager._cursor_moved()
     endif
 endfunction
 
-function! UltiSnips#Edit(bang, ...)
+function! s:is_floating(winId) abort
+    if has('nvim')
+        return get(nvim_win_get_config(a:winId), 'relative', '') !=# ''
+    endif
+
+    return 0
+endfunction
+
+function! UltiSnips#Edit(bang, ...) abort
     if a:0 == 1 && a:1 != ''
         let type = a:1
     else
         let type = ""
     endif
-    exec g:_uspy "vim.command(\"let file = '%s'\" % UltiSnips_Manager._file_to_edit(vim.eval(\"type\"), vim.eval('a:bang')))"
+    let file = py3eval("UltiSnips_Manager._file_to_edit(vim.eval('type'), vim.eval('a:bang'))")
 
     if !len(file)
        return
@@ -64,6 +43,8 @@ function! UltiSnips#Edit(bang, ...)
             let mode = 'vs'
         elseif g:UltiSnipsEditSplit == 'horizontal'
             let mode = 'sp'
+        elseif g:UltiSnipsEditSplit == 'tabdo'
+            let mode = 'tabedit'
         elseif g:UltiSnipsEditSplit == 'context'
             let mode = 'vs'
             if winwidth(0) <= 2 * (&tw ? &tw : 80)
@@ -74,12 +55,17 @@ function! UltiSnips#Edit(bang, ...)
     exe ':'.mode.' '.escape(file, ' ')
 endfunction
 
-function! UltiSnips#AddFiletypes(filetypes)
-    exec g:_uspy "UltiSnips_Manager.add_buffer_filetypes('" . a:filetypes . ".all')"
+function! UltiSnips#AddFiletypes(filetypes) abort
+    py3 UltiSnips_Manager.add_buffer_filetypes(vim.eval("a:filetypes"))
     return ""
 endfunction
 
-function! UltiSnips#FileTypeComplete(arglead, cmdline, cursorpos)
+function! UltiSnips#RemoveFiletypes(filetypes) abort
+    py3 UltiSnips_Manager.remove_buffer_filetypes(vim.eval("a:filetypes"))
+    return ""
+endfunction
+
+function! UltiSnips#FileTypeComplete(arglead, cmdline, cursorpos) abort
     let ret = {}
     let items = map(
     \   split(globpath(&runtimepath, 'syntax/*.vim'), '\n'),
@@ -95,94 +81,189 @@ function! UltiSnips#FileTypeComplete(arglead, cmdline, cursorpos)
     return sort(keys(ret))
 endfunction
 
-function! UltiSnips#ExpandSnippet()
-    exec g:_uspy "UltiSnips_Manager.expand()"
-    return ""
-endfunction
-
-function! UltiSnips#ExpandSnippetOrJump()
+function! UltiSnips#ExpandSnippet() abort
     call s:compensate_for_pum()
-    exec g:_uspy "UltiSnips_Manager.expand_or_jump()"
+    py3 UltiSnips_Manager.expand()
     return ""
 endfunction
 
-function! UltiSnips#ListSnippets()
-    exec g:_uspy "UltiSnips_Manager.list_snippets()"
+function! UltiSnips#ExpandSnippetOrJump() abort
+    call s:compensate_for_pum()
+    py3 UltiSnips_Manager.expand_or_jump()
     return ""
 endfunction
 
-function! UltiSnips#SnippetsInCurrentScope()
+function! UltiSnips#JumpOrExpandSnippet() abort
+    call s:compensate_for_pum()
+    py3 UltiSnips_Manager.jump_or_expand()
+    return ""
+endfunction
+
+function! UltiSnips#ListSnippets() abort
+    call s:compensate_for_pum()
+    py3 UltiSnips_Manager.list_snippets()
+    return ""
+endfunction
+
+function! UltiSnips#SnippetsInCurrentScope(...) abort
     let g:current_ulti_dict = {}
-    exec g:_uspy "UltiSnips_Manager.snippets_in_current_scope()"
+    let g:current_ulti_dict_info = {}
+    let all = get(a:, 1, 0)
+    py3 UltiSnips_Manager.snippets_in_current_scope(int(vim.eval("all")))
     return g:current_ulti_dict
 endfunction
 
-function! UltiSnips#SaveLastVisualSelection()
-    exec g:_uspy "UltiSnips_Manager._save_last_visual_selection()"
+function! UltiSnips#SnippetLocations() abort
+    " Returns a list of {filename, lnum, text} dicts (quickfix-list format)
+    " describing where each snippet known to UltiSnips is defined. Snippets
+    " whose location is not a file (e.g. those added via
+    " UltiSnips#AddSnippetWithPriority) are omitted.
+    call UltiSnips#SnippetsInCurrentScope(1)
+    let l:result = []
+    for [l:trigger, l:info] in items(g:current_ulti_dict_info)
+        let l:idx = strridx(l:info.location, ':')
+        if l:idx <= 0
+            continue
+        endif
+        let l:lnum = str2nr(strpart(l:info.location, l:idx + 1))
+        if l:lnum <= 0
+            continue
+        endif
+        let l:text = l:trigger
+        if !empty(l:info.description)
+            let l:text .= ' - ' . l:info.description
+        endif
+        call add(l:result, {
+            \ 'filename': strpart(l:info.location, 0, l:idx),
+            \ 'lnum': l:lnum,
+            \ 'text': l:text,
+            \ })
+    endfor
+    return sort(l:result, {a, b -> a.text ==# b.text ? 0 : (a.text <# b.text ? -1 : 1)})
+endfunction
+
+function! UltiSnips#ListSnippetLocations() abort
+    let l:locs = UltiSnips#SnippetLocations()
+    if empty(l:locs)
+        echo "UltiSnips: no snippet definitions with file locations found."
+        return
+    endif
+    call setqflist([], 'r', {'title': 'UltiSnips snippet locations', 'items': l:locs})
+    copen
+endfunction
+
+function! UltiSnips#CanExpandSnippet() abort
+	return py3eval("UltiSnips_Manager.can_expand()")
+endfunction
+
+function! UltiSnips#CanJumpForwards() abort
+	return py3eval("UltiSnips_Manager.can_jump_forwards()")
+endfunction
+
+function! UltiSnips#CanJumpBackwards() abort
+	return py3eval("UltiSnips_Manager.can_jump_backwards()")
+endfunction
+
+function! UltiSnips#ToggleAutoTrigger() abort
+    return py3eval("UltiSnips_Manager._toggle_autotrigger()")
+endfunction
+
+function! UltiSnips#SaveLastVisualSelection() range abort
+    py3 UltiSnips_Manager._save_last_visual_selection()
     return ""
 endfunction
 
-function! UltiSnips#JumpBackwards()
+function! UltiSnips#JumpBackwards() abort
     call s:compensate_for_pum()
-    exec g:_uspy "UltiSnips_Manager.jump_backwards()"
+    py3 UltiSnips_Manager.jump_backwards()
     return ""
 endfunction
 
-function! UltiSnips#JumpForwards()
+function! UltiSnips#JumpForwards() abort
     call s:compensate_for_pum()
-    exec g:_uspy "UltiSnips_Manager.jump_forwards()"
+    py3 UltiSnips_Manager.jump_forwards()
     return ""
 endfunction
 
-function! UltiSnips#FileTypeChanged()
-    exec g:_uspy "UltiSnips_Manager.reset_buffer_filetypes()"
-    exec g:_uspy "UltiSnips_Manager.add_buffer_filetypes('" . &ft . "')"
+function! UltiSnips#AddSnippetWithPriority(trigger, value, description, options, filetype, priority) abort
+    py3 trigger = vim.eval("a:trigger")
+    py3 value = vim.eval("a:value")
+    py3 description = vim.eval("a:description")
+    py3 options = vim.eval("a:options")
+    py3 filetype = vim.eval("a:filetype")
+    py3 priority = vim.eval("a:priority")
+    py3 UltiSnips_Manager.add_snippet(trigger, value, description, options, filetype, priority)
     return ""
 endfunction
 
-
-function! UltiSnips#AddSnippet(trigger, value, description, options, ...)
-    " Takes the same arguments as SnippetManager.add_snippet.
-    echoerr "Deprecated UltiSnips#AddSnippet called. Please use UltiSnips#AddSnippetWithPriority." | sleep 1
-    exec g:_uspy "args = vim.eval(\"a:000\")"
-    exec g:_uspy "trigger = vim.eval(\"a:trigger\")"
-    exec g:_uspy "value = vim.eval(\"a:value\")"
-    exec g:_uspy "description = vim.eval(\"a:description\")"
-    exec g:_uspy "options = vim.eval(\"a:options\")"
-    exec g:_uspy "UltiSnips_Manager.add_snippet(trigger, value, description, options, *args)"
-    return ""
-endfunction
-
-function! UltiSnips#AddSnippetWithPriority(trigger, value, description, options, filetype, priority)
-    exec g:_uspy "trigger = vim.eval(\"a:trigger\")"
-    exec g:_uspy "value = vim.eval(\"a:value\")"
-    exec g:_uspy "description = vim.eval(\"a:description\")"
-    exec g:_uspy "options = vim.eval(\"a:options\")"
-    exec g:_uspy "filetype = vim.eval(\"a:filetype\")"
-    exec g:_uspy "priority = vim.eval(\"a:priority\")"
-    exec g:_uspy "UltiSnips_Manager.add_snippet(trigger, value, description, options, filetype, priority)"
-    return ""
-endfunction
-
-function! UltiSnips#Anon(value, ...)
+function! UltiSnips#Anon(value, ...) abort
     " Takes the same arguments as SnippetManager.expand_anon:
     " (value, trigger="", description="", options="")
-    exec g:_uspy "args = vim.eval(\"a:000\")"
-    exec g:_uspy "value = vim.eval(\"a:value\")"
-    exec g:_uspy "UltiSnips_Manager.expand_anon(value, *args)"
+    py3 args = vim.eval("a:000")
+    py3 value = vim.eval("a:value")
+    py3 UltiSnips_Manager.expand_anon(value, *args)
     return ""
 endfunction
 
-
-function! UltiSnips#CursorMoved()
-    exec g:_uspy "UltiSnips_Manager._cursor_moved()"
-endf
-
-function! UltiSnips#LeavingBuffer()
-    exec g:_uspy "UltiSnips_Manager._leaving_buffer()"
-endf
-
-function! UltiSnips#LeavingInsertMode()
-    exec g:_uspy "UltiSnips_Manager._leaving_insert_mode()"
+function! UltiSnips#CursorMoved() abort
+    py3 UltiSnips_Manager._cursor_moved()
 endfunction
-" }}}
+
+function! UltiSnips#IsAuxWindow(winnr) abort
+    " Auxiliary windows that should not tear down an active snippet:
+    "   - the preview window
+    "   - neovim floating windows
+    "   - quickfix and location-list windows
+    " These are typically opened transiently by other plugins
+    " (nvim-cmp docs popup, vimtex quickfix, lsp signature_help, …) and the
+    " user expects to come back to the snippet afterwards.
+    if getwinvar(a:winnr, '&previewwindow')
+        return 1
+    endif
+    if s:is_floating(win_getid(a:winnr))
+        return 1
+    endif
+    if getwinvar(a:winnr, '&buftype') ==# 'quickfix'
+        return 1
+    endif
+    " On `:copen`/`:lopen` Vim sets `&buftype` *after* `BufEnter` fires, so
+    " also recognise the window via `getwininfo()`'s `quickfix` / `loclist`
+    " flags (populated synchronously when the qf window is created).
+    let l:winid = win_getid(a:winnr)
+    if l:winid <= 0
+        return 0
+    endif
+    let l:info = getwininfo(l:winid)
+    if empty(l:info)
+        return 0
+    endif
+    return l:info[0].quickfix || l:info[0].loclist
+endfunction
+
+function! s:leaving_buffer_impl() abort
+    if !(UltiSnips#IsAuxWindow(winnr('#')) || UltiSnips#IsAuxWindow(winnr()))
+        py3 UltiSnips_Manager._leaving_buffer()
+    endif
+endfunction
+
+function! UltiSnips#LeavingBuffer() abort
+    " The check is deferred to the next event-loop tick because some auxiliary
+    " windows (notably quickfix / location-list opened via `:copen` / `:lopen`)
+    " set their `&buftype` *after* BufEnter fires. Running the check
+    " synchronously from the BufEnter autocmd would see an unmarked window and
+    " incorrectly tear the snippet down. By the time the timer callback runs,
+    " the window/buffer is fully initialised.
+    call timer_start(0, {-> s:leaving_buffer_impl()})
+endfunction
+
+function! UltiSnips#LeavingInsertMode() abort
+    py3 UltiSnips_Manager._leaving_insert_mode()
+endfunction
+
+function! UltiSnips#TrackChange() abort
+    py3 UltiSnips_Manager._track_change()
+endfunction
+
+function! UltiSnips#RefreshSnippets() abort
+    py3 UltiSnips_Manager._refresh_snippets()
+endfunction
